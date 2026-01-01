@@ -1,102 +1,80 @@
 import streamlit as st
-from openai import OpenAI
+from groq import Groq
+from gtts import gTTS
+import os
 
-# --- 1. CONFIGURATION & DESIGN ---
+# --- 1. CONFIGURATION ---
 st.set_page_config(page_title="Medical Advocate", layout="centered")
 
-# This CSS forces the "High-Tech Medical Chart" look
 st.markdown("""
     <style>
-    .stApp {
-        background-color: #0E1117; /* Dark Slate Background */
-        color: #FAFAFA;
-    }
-    .stSelectbox > div > div {
-        background-color: #262730;
-        color: white;
-    }
+    .stApp { background-color: #0E1117; color: #FAFAFA; }
+    .stSelectbox > div > div { background-color: #262730; color: white; }
     .stButton>button {
-        width: 100%;
-        background-color: #2DD4BF; /* Medical Teal */
-        color: #000000;
-        font-weight: bold;
-        border: none;
-        padding: 15px;
-        text-transform: uppercase;
-        letter-spacing: 1px;
+        width: 100%; background-color: #2DD4BF; color: #000000;
+        font-weight: bold; border: none; padding: 15px;
     }
-    /* Make the success box look like a green console printout */
-    .stSuccess {
-        background-color: #064E3B;
-        color: #6EE7B7;
-        border-left: 5px solid #34D399;
-    }
+    .stSuccess { background-color: #064E3B; color: #6EE7B7; }
     </style>
     """, unsafe_allow_html=True)
 
-# --- 2. THE INTERFACE ---
-st.title("🏥 MEDICAL ADVOCACY PROTOCOL")
+# --- 2. INTERFACE ---
+st.title("🏥 MEDICAL ADVOCATE (Free Version)")
 st.markdown("`SYSTEM STATUS: ONLINE // ID: PT-894`")
 st.divider()
 
-# Input Grid
 col1, col2 = st.columns(2)
 with col1:
     pain = st.selectbox("PAIN LEVEL", ["Select...", "Mild", "Moderate", "Severe/Acute", "Intolerable"])
     duration = st.selectbox("DURATION", ["Select...", "New (Days)", "Sub-Acute (Weeks)", "Chronic (>3 Months)"])
-
 with col2:
     impact = st.multiselect("FUNCTIONAL IMPACT", ["Sleep", "Work Ability", "Mobility", "Cognition", "Appetite"])
     goal = st.selectbox("GOAL", ["Select...", "Referral to Specialist", "Imaging/Testing", "Medication Adjustment", "Documentation Only"])
 
-# --- 3. THE LOGIC ---
+# --- 3. LOGIC ---
 if st.button("GENERATE CLINICAL REPORT"):
     
-    # Check if the user filled out the form
-    if pain == "Select..." or goal == "Select...":
-        st.error("❌ ERROR: INCOMPLETE DATA. Please select Pain Level and Goal.")
-    
-    # Check if the API Key is connected (Safety Check)
-    elif "OPENAI_API_KEY" not in st.secrets:
-        st.warning("⚠️ SYSTEM ALERT: OpenAI API Key missing. Please add it to Streamlit Secrets to generate text.")
-    
+    if "GROQ_API_KEY" not in st.secrets:
+        st.error("⚠️ KEY MISSING: Please add GROQ_API_KEY to secrets.")
+    elif pain == "Select..." or goal == "Select...":
+        st.error("❌ ERROR: Please fill all fields.")
     else:
-        # If everything is good, run the AI
         try:
-            client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
+            # A. THE BRAIN (Groq - Free)
+            client = Groq(api_key=st.secrets["GROQ_API_KEY"])
             
-            # The Hidden "System Prompt" - You edit this to change the AI's personality
             system_instruction = """
-            You are a medical advocate for a racialized neurodivergent patient. 
-            Translate their inputs into strict, clinical, objective language. 
-            Use short sentences. Do not be emotional. 
-            If they want 'Documentation', explicitly ask the doctor to record any refusals in the chart.
+            You are a medical advocate. Translate user inputs into strict, clinical language. 
+            Use short sentences. Be firm and objective.
+            If 'Documentation' is requested, explicitly ask the doctor to record any refusals in the chart.
             """
             
             user_data = f"Patient reports {pain} pain for {duration}. Impact: {impact}. Goal: {goal}."
             
-            with st.spinner("PROCESSING CLINICAL TRANSLATION..."):
-                # 1. Generate Text
-                response = client.chat.completions.create(
-                    model="gpt-4o-mini",
+            with st.spinner("PROCESSING (Free Tier)..."):
+                completion = client.chat.completions.create(
+                    model="llama3-8b-8192", # This is a fast, free, open-source model
                     messages=[
                         {"role": "system", "content": system_instruction},
                         {"role": "user", "content": user_data}
-                    ]
+                    ],
+                    temperature=0.5,
                 )
-                script_text = response.choices[0].message.content
+                script_text = completion.choices[0].message.content
                 
-                # 2. Generate Audio (Voice)
-                audio_response = client.audio.speech.create(
-                    model="tts-1",
-                    voice="onyx", # Deep, authoritative voice
-                    input=script_text
-                )
+                # B. THE VOICE (gTTS - Free)
+                # We save the audio to a temp file then play it
+                tts = gTTS(text=script_text, lang='en', slow=False)
+                tts.save("speech.mp3")
                 
-                # 3. Show Results
+                # C. DISPLAY
                 st.success("✅ REPORT GENERATED")
-                st.code(script_text, language="markdown") # Display text in a code box
-                st.audio(audio_response.content, format="audio/mp3") # Audio player
+                st.code(script_text, language="markdown")
+                
+                # Play the audio file we just created
+                audio_file = open('speech.mp3', 'rb')
+                audio_bytes = audio_file.read()
+                st.audio(audio_bytes, format='audio/mp3')
                 
         except Exception as e:
             st.error(f"SYSTEM FAILURE: {e}")
