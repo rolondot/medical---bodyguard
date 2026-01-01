@@ -53,28 +53,12 @@ if st.button("GENERATE CLINICAL REPORT"):
             
             with st.spinner("PROCESSING (Free Tier)..."):
                 completion = client.chat.completions.create(
-                    model="llama3-8b-8192", # This is a fast, free, open-source model
+                    # UPDATED MODEL NAME HERE:
+                    model="llama-3.3-70b-versatile",
                     messages=[
                         {"role": "system", "content": system_instruction},
                         {"role": "user", "content": user_data}
                     ],
                     temperature=0.5,
                 )
-                script_text = completion.choices[0].message.content
-                
-                # B. THE VOICE (gTTS - Free)
-                # We save the audio to a temp file then play it
-                tts = gTTS(text=script_text, lang='en', slow=False)
-                tts.save("speech.mp3")
-                
-                # C. DISPLAY
-                st.success("✅ REPORT GENERATED")
-                st.code(script_text, language="markdown")
-                
-                # Play the audio file we just created
-                audio_file = open('speech.mp3', 'rb')
-                audio_bytes = audio_file.read()
-                st.audio(audio_bytes, format='audio/mp3')
-                
-        except Exception as e:
-            st.error(f"SYSTEM FAILURE: {e}")
+                script
